@@ -9,16 +9,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=no">
     
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjogIzMzMzMzMzsiPjx0ZXh0IHk9IjUwJSIgeD0iNTAlIiBkeT0iLjM1ZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iNTAiIHN0eWxlPSJmaWxsOiAjZmZmZmZmOyBmb250LWZhbWlseTogc2Fucy1zZXJpZjsiPsҐPC90ZXh0Pjwvc3ZnPg==">
-    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjogIzMzMzMzMzsiPjx0ZXh0IHk9IjUwJSIgeD0iNTAlIiBkeT0iLjM1ZW0iIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iNTAiIHN0eWxlPSJmaWxsOiAjZmZmZmZmOyBmb250LWZhbWlseTogc2Fucy1zZXJpZjsiPsҐPC90ZXh0Pjwvc3ZnPg==">
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <link rel="manifest" href="manifest.json">
 
     <style>
         :root {
-            --primary: #2c3e50;
-            --accent: #3498db;
-            --danger: #e74c3c;
-            --safe: #27ae60;
-            --bg: #f5f6fa;
+            --primary: #2c3e50; /* メインカラー: ダークネイビー */
+            --accent: #3498db;  /* アクセント: ブルー */
+            --danger: #e74c3c;  /* 警告色 */
+            --safe: #27ae60;    /* 安全色 */
+            --bg: #f5f6fa;      /* 背景色 */
             --card-bg: #FFFFFF;
             --text: #2c3e50;
         }
@@ -30,9 +32,10 @@
             margin: 0;
             padding: 0;
             padding-bottom: 80px; /* 下部ボタンエリア用に余白確保 */
-            overscroll-behavior-y: none;
+            overscroll-behavior-y: none; /* バウンススクロール防止 */
         }
 
+        /* 上部固定ヘッダー */
         header {
             background: var(--primary);
             color: white;
@@ -43,6 +46,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
+        /* 年選択エリア */
         .year-selector-area {
             display: flex;
             justify-content: center;
@@ -62,6 +66,7 @@
         }
         select#yearSelect option { color: #333; }
 
+        /* ステータスカード */
         .status-card {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
@@ -80,6 +85,7 @@
         .status-value { font-size: 18px; font-weight: bold; font-family: 'Roboto Mono', monospace; }
         .big-number { font-size: 24px; }
 
+        /* 上限入力エリア */
         .limit-input-container {
             display: flex;
             justify-content: flex-end;
@@ -101,6 +107,7 @@
             margin-left: 8px;
         }
 
+        /* リストエリア */
         .month-list {
             padding: 15px;
             max-width: 600px;
@@ -183,7 +190,6 @@
         }
         
         .btn-primary { border-color: var(--accent); color: var(--accent); font-weight: bold; }
-        .btn-danger { border-color: #fab1a0; color: #e74c3c; margin-top: 20px; }
         
         /* インポート用の隠しinput */
         #fileInput { display: none; }
@@ -401,8 +407,6 @@
             try {
                 const data = JSON.parse(e.target.result);
                 if (confirm("現在のデータを上書きして、ファイルを読み込みますか？")) {
-                    // fuyo_で始まる既存データをクリアしてからロードするか、マージするか。
-                    // 安全のためマージ（上書き）にする
                     Object.keys(data).forEach(key => {
                         if (key.startsWith('fuyo_')) {
                             localStorage.setItem(key, data[key]);
@@ -416,19 +420,15 @@
             }
         };
         reader.readAsText(file);
-        // 同じファイルを再度選べるようにリセット
         input.value = ''; 
     }
 
     // --- CSVエクスポート (Excel用) ---
     function exportCsv() {
-        let csvContent = "\uFEFF年度,月,金額\n"; // BOM付きでExcel文字化け防止
-        
-        // 全ローカルストレージを走査してリスト化
+        let csvContent = "\uFEFF年度,月,金額\n"; 
         const lines = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            // キー形式: fuyo_2026_m12
             const match = key.match(/^fuyo_(\d{4})_m(\d{1,2})$/);
             if (match) {
                 const year = match[1];
@@ -438,11 +438,8 @@
             }
         }
 
-        // 年度・月順にソート
         lines.sort((a, b) => {
             if (a.year !== b.year) return a.year - b.year;
-            // 12月始まりの特殊順序対応は複雑になるので、単純な月順(1-12)か、年度順にする
-            // ここでは単純に月順にならべる
             return a.month - b.month;
         });
 
