@@ -29,7 +29,7 @@
             color: var(--text);
             margin: 0;
             padding: 0;
-            padding-bottom: 60px;
+            padding-bottom: 80px; /* 下部ボタンエリア用に余白確保 */
             overscroll-behavior-y: none;
         }
 
@@ -43,7 +43,6 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
-        /* 年選択エリア */
         .year-selector-area {
             display: flex;
             justify-content: center;
@@ -61,10 +60,7 @@
             font-weight: bold;
             outline: none;
         }
-        
-        select#yearSelect option {
-            color: #333;
-        }
+        select#yearSelect option { color: #333; }
 
         .status-card {
             background: rgba(255, 255, 255, 0.1);
@@ -122,18 +118,14 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border-left: 4px solid transparent;
         }
-
-        .month-item:focus-within {
-            border-left: 4px solid var(--accent);
-        }
+        .month-item:focus-within { border-left: 4px solid var(--accent); }
 
         .month-name {
             font-weight: 600;
             color: var(--text);
             font-size: 14px;
-            width: 70px; /* 少し広げる */
+            width: 70px;
         }
-        
         .month-sub {
             font-size: 10px;
             color: #888;
@@ -141,10 +133,7 @@
             font-weight: normal;
         }
 
-        .input-wrapper {
-            flex-grow: 1;
-            text-align: right;
-        }
+        .input-wrapper { flex-grow: 1; text-align: right; }
 
         .money-input {
             width: 100%;
@@ -169,29 +158,37 @@
             line-height: 1.4;
         }
 
+        /* アクションボタンエリア */
         .action-area {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 30px auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 0 15px 30px 15px;
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         .btn {
             background: white;
             border: 1px solid #ddd;
             color: #555;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 10px;
+            border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
+            text-align: center;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
         }
         
-        .btn-primary {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
+        .btn-primary { border-color: var(--accent); color: var(--accent); font-weight: bold; }
+        .btn-danger { border-color: #fab1a0; color: #e74c3c; margin-top: 20px; }
+        
+        /* インポート用の隠しinput */
+        #fileInput { display: none; }
+        
+        h2 { font-size: 14px; margin: 20px 0 10px 15px; color: #666; border-bottom: 1px solid #eee; padding-bottom: 5px; max-width: 580px; }
 
     </style>
 </head>
@@ -205,7 +202,7 @@
     </div>
 
     <div class="limit-input-container">
-        <span>年間上限設定:</span>
+        <span>年間上限(交通費除く):</span>
         <input type="number" id="targetLimit" value="1030000" onchange="saveAndCalculate()">
     </div>
 
@@ -230,20 +227,23 @@
 <div class="month-list" id="monthList">
     </div>
 
+<h2>データ管理</h2>
 <div class="action-area">
-    <button class="btn btn-primary" onclick="exportJson()">JSON出力</button>
-    <button class="btn" onclick="resetData()">この年度を削除</button>
+    <button class="btn btn-primary" onclick="exportJson()">JSON出力 (保存)</button>
+    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">JSON読込 (復元)</button>
+    <input type="file" id="fileInput" accept=".json" onchange="importJson(this)">
+    
+    <button class="btn" onclick="exportCsv()">CSV出力 (Excel用)</button>
+    <button class="btn" onclick="resetYearData()">この年度をクリア</button>
+</div>
+<div style="text-align:center; padding-bottom:30px;">
+    <button style="border:none; background:none; color:#999; text-decoration:underline; font-size:11px;" onclick="resetAllData()">全データを完全消去</button>
 </div>
 
 <script>
-    // 12月始まりのロジック
-    // 例：2026年度 = 2025年12月 ～ 2026年11月
     const monthOrder = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-    
     let currentYear = new Date().getFullYear();
-    // もし現在が12月なら、感覚的には来年度の入力かもしれないので、デフォルトを調整してもいいが
-    // ここでは単純に「起動時の西暦」をデフォルトとする
-    
+
     function init() {
         setupYearSelector();
         renderMonths();
@@ -253,8 +253,8 @@
     function setupYearSelector() {
         const select = document.getElementById('yearSelect');
         const thisYear = new Date().getFullYear();
-        // 前後3年分くらいを生成
-        for (let y = thisYear - 2; y <= thisYear + 3; y++) {
+        select.innerHTML = "";
+        for (let y = thisYear - 3; y <= thisYear + 3; y++) {
             const option = document.createElement('option');
             option.value = y;
             option.text = y;
@@ -265,9 +265,7 @@
     }
 
     function changeYear() {
-        const select = document.getElementById('yearSelect');
-        currentYear = parseInt(select.value);
-        // 画面再描画
+        currentYear = parseInt(document.getElementById('yearSelect').value);
         renderMonths(); 
         loadData();
     }
@@ -275,11 +273,8 @@
     function renderMonths() {
         const container = document.getElementById('monthList');
         container.innerHTML = '';
-        
         monthOrder.forEach(month => {
-            // 年の表示計算（12月は前年、1-11月は選択した年）
             let displayYear = (month === 12) ? currentYear - 1 : currentYear;
-
             const div = document.createElement('div');
             div.className = 'month-item';
             div.innerHTML = `
@@ -301,8 +296,6 @@
         let currentTotal = 0;
         let filledMonths = 0;
         
-        // データ収集と保存
-        // キー名を「fuyo_2026_m12」のように年度付きにする
         monthOrder.forEach(month => {
             const input = document.getElementById(`m${month}`);
             const val = input.value;
@@ -320,33 +313,26 @@
 
         localStorage.setItem(`fuyo_${currentYear}_target`, target);
 
-        // 計算ロジック
         const remainingMonths = 12 - filledMonths;
         const remainingBudget = target - currentTotal;
         
         document.getElementById('currentTotal').innerText = currentTotal.toLocaleString() + " 円";
-
         const safeLimitEl = document.getElementById('monthlySafeLimit');
+        
         if (remainingMonths > 0) {
             const safePerMonth = Math.floor(remainingBudget / remainingMonths);
             safeLimitEl.innerText = safePerMonth.toLocaleString() + " 円";
-            
-            if (safePerMonth < 0) {
-                safeLimitEl.style.color = "#ff8a80"; 
-            } else {
-                safeLimitEl.style.color = "#ffffff";
-            }
+            safeLimitEl.style.color = safePerMonth < 0 ? "#ff8a80" : "#ffffff";
         } else {
             safeLimitEl.innerText = "期間終了";
+            safeLimitEl.style.color = "#ffffff";
         }
 
-        // 予測
         const predBox = document.getElementById('predictionBox');
         if (filledMonths > 0) {
             const average = currentTotal / filledMonths;
             const predictedTotal = currentTotal + (average * remainingMonths);
             const diff = predictedTotal - target;
-
             if (diff > 0) {
                 predBox.innerHTML = `⚠️ 注意: 現在のペース(${Math.floor(average).toLocaleString()}円/月)では<br>年間 <strong>${Math.floor(diff).toLocaleString()}円</strong> 超過する見込みです`;
                 predBox.style.background = "rgba(231, 76, 60, 0.6)"; 
@@ -356,71 +342,124 @@
                 predBox.style.background = "rgba(39, 174, 96, 0.6)"; 
             }
         } else {
-            predBox.innerHTML = "入力データから年末着地見込を判定します";
+            predBox.innerHTML = "データを入力して予測を表示";
             predBox.style.background = "rgba(0,0,0,0.2)";
         }
     }
 
     function loadData() {
-        // 現在選択されている年度のデータをロード
         const savedTarget = localStorage.getItem(`fuyo_${currentYear}_target`);
-        if (savedTarget) {
-            document.getElementById('targetLimit').value = savedTarget;
-        } else {
-            // 新しい年度でデータがない場合はデフォルト103万
-            document.getElementById('targetLimit').value = 1030000;
-        }
+        document.getElementById('targetLimit').value = savedTarget ? savedTarget : 1030000;
 
         monthOrder.forEach(month => {
             const val = localStorage.getItem(`fuyo_${currentYear}_m${month}`);
-            const input = document.getElementById(`m${month}`);
-            if (val !== null) {
-                input.value = val;
-            } else {
-                input.value = "";
-            }
+            document.getElementById(`m${month}`).value = val !== null ? val : "";
         });
-        
-        // 計算実行（表示更新のため）
         saveAndCalculate();
     }
 
-    function resetData() {
-        if(confirm(`${currentYear}年度のデータを全て削除しますか？\n(他の年度のデータは消えません)`)){
-            // その年度のキーだけ削除
-            monthOrder.forEach(month => {
-                localStorage.removeItem(`fuyo_${currentYear}_m${month}`);
-            });
+    function resetYearData() {
+        if(confirm(`${currentYear}年度のデータをクリアしますか？\n(他年度のデータは保持されます)`)){
+            monthOrder.forEach(month => localStorage.removeItem(`fuyo_${currentYear}_m${month}`));
             localStorage.removeItem(`fuyo_${currentYear}_target`);
-            
+            loadData();
+        }
+    }
+    
+    function resetAllData() {
+        if(confirm("【警告】\n全ての年度のデータを完全に削除します。\n本当によろしいですか？")){
+            localStorage.clear();
             location.reload();
         }
     }
 
-    // JSONエクスポート機能
+    // --- JSONエクスポート (保存) ---
     function exportJson() {
         const exportData = {};
-        
-        // localStorage内の当アプリ関連データ(fuyo_で始まるもの)を全て収集
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key.startsWith('fuyo_')) {
                 exportData[key] = localStorage.getItem(key);
             }
         }
-
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        // ファイル名に日付をつける
-        const dateStr = new Date().toISOString().slice(0,10);
-        downloadAnchorNode.setAttribute("download", `fuyo_backup_${dateStr}.json`);
-        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.setAttribute("download", `fuyo_backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
     }
 
-    // 起動
+    // --- JSONインポート (復元) ---
+    function importJson(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (confirm("現在のデータを上書きして、ファイルを読み込みますか？")) {
+                    // fuyo_で始まる既存データをクリアしてからロードするか、マージするか。
+                    // 安全のためマージ（上書き）にする
+                    Object.keys(data).forEach(key => {
+                        if (key.startsWith('fuyo_')) {
+                            localStorage.setItem(key, data[key]);
+                        }
+                    });
+                    alert("データの復元が完了しました。");
+                    location.reload();
+                }
+            } catch (err) {
+                alert("ファイルの読み込みに失敗しました。\n正しいJSONファイルか確認してください。");
+            }
+        };
+        reader.readAsText(file);
+        // 同じファイルを再度選べるようにリセット
+        input.value = ''; 
+    }
+
+    // --- CSVエクスポート (Excel用) ---
+    function exportCsv() {
+        let csvContent = "\uFEFF年度,月,金額\n"; // BOM付きでExcel文字化け防止
+        
+        // 全ローカルストレージを走査してリスト化
+        const lines = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            // キー形式: fuyo_2026_m12
+            const match = key.match(/^fuyo_(\d{4})_m(\d{1,2})$/);
+            if (match) {
+                const year = match[1];
+                const month = match[2];
+                const value = localStorage.getItem(key);
+                lines.push({year: parseInt(year), month: parseInt(month), value: value});
+            }
+        }
+
+        // 年度・月順にソート
+        lines.sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            // 12月始まりの特殊順序対応は複雑になるので、単純な月順(1-12)か、年度順にする
+            // ここでは単純に月順にならべる
+            return a.month - b.month;
+        });
+
+        lines.forEach(line => {
+            csvContent += `${line.year}年度,${line.month}月,${line.value}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `fuyo_data_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     init();
 </script>
 </body>
